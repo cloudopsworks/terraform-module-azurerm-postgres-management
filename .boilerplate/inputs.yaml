@@ -1,1 +1,77 @@
-# Module configuration
+# Module configuration — Azure PostgreSQL Management
+# All module-specific variables are documented below.
+# Variables supplied by the Terragrunt hierarchy (is_hub, spoke_def, org, extra_tags) are omitted.
+
+# ── Azure PostgreSQL Flexible Server connection ──────────────────────────────
+azure:
+  enabled: false              # (Optional) Connect via Azure Flexible Server lookup. Default: false.
+  from_secret: false          # (Optional) Load admin credentials from a Key Vault secret. Default: false.
+  secret_name: ""             # (Required when from_secret=true) Key Vault secret name containing JSON {host,port,username,password,dbname}.
+  server_name: ""             # (Required when enabled+!from_secret) Azure Flexible Server name.
+  resource_group_name: ""     # (Optional) Resource group of the server (required when enabled+!from_secret).
+  admin_username: "adminuser" # (Optional) Admin login when not using from_secret. Default: "adminuser".
+  admin_password: ""          # (Optional) Admin password when not using from_secret.
+  db_name: "postgres"         # (Optional) Default database name. Default: "postgres".
+  sslmode: "require"          # (Optional) SSL mode. Valid: "require", "verify-full", "disable". Default: "require".
+  superuser: false            # (Optional) Connect in superuser mode. Default: false.
+
+# ── Direct connection (used when azure.enabled=false and hoop.enabled=false) ─
+direct:
+  host: ""                    # (Required) PostgreSQL server FQDN or IP address.
+  port: 5432                  # (Optional) TCP port. Default: 5432.
+  username: ""                # (Required) Admin username.
+  password: ""                # (Required) Admin password.
+  db_name: "postgres"         # (Optional) Default database. Default: "postgres".
+  server_name: ""             # (Optional) Logical server name used for credential naming in Key Vault.
+  sslmode: "require"          # (Optional) SSL mode. Default: "require".
+  superuser: false            # (Optional) Superuser mode. Default: false.
+
+# ── Databases ────────────────────────────────────────────────────────────────
+databases: {}
+# databases:
+#   mydb:                          # (Required) Logical key for the database
+#     name: "mydb"                 # (Required) Actual PostgreSQL database name
+#     owner: "appowner"            # (Optional) Owner role name. Default: admin login.
+#     lc_collate: "en_US.UTF-8"    # (Optional) Locale for collation. Default: "en_US.UTF-8".
+#     lc_ctype: "en_US.UTF-8"      # (Optional) Locale for character classification. Default: "en_US.UTF-8".
+#     connection_limit: -1         # (Optional) Max simultaneous connections. -1 = unlimited. Default: -1.
+#     schemas:                     # (Optional) List of schemas to create inside this database.
+#       - name: "app"              #   (Required) Schema name.
+#         owner: "appowner"        #   (Optional) Schema owner. Default: admin login.
+
+# ── Users / Roles ────────────────────────────────────────────────────────────
+users: {}
+# users:
+#   owner:                         # (Required) Logical key for the user
+#     username: "appowner"         # (Required) PostgreSQL role name.
+#     databases: ["mydb"]          # (Required) List of databases this user is associated with.
+#     create_owner: true           # (Optional) true = owner role (CREATEDB/CREATEROLE eligible). Default: true.
+#     create_db: false             # (Optional) Grant CREATEDB privilege. Default: false.
+#     create_role: false           # (Optional) Grant CREATEROLE privilege. Default: false.
+#     role: ""                     # (Optional) Grant membership in this named role group.
+#   reader:
+#     username: "appreader"
+#     databases: ["mydb"]
+#     create_owner: false          # (Optional) false = regular login user. Default: true.
+#     access: "readonly"           # (Optional) "readonly" or "readwrite". Default: "readwrite".
+#     role: ""                     # (Optional) Named role group membership.
+
+# ── Key Vault ────────────────────────────────────────────────────────────────
+key_vault_name: ""                    # (Required) Name of the existing Azure Key Vault for credential storage.
+key_vault_resource_group_name: ""     # (Required) Resource group of the existing Azure Key Vault.
+
+# ── Password management ───────────────────────────────────────────────────────
+password_rotation_period: ""   # (Optional) Trigger password rotation after this period (e.g., "30d", "7d"). Default: "" (no rotation).
+force_reset: false             # (Optional) Force password reset for all managed users on next apply. Default: false.
+
+# ── Hoop integration (optional) ──────────────────────────────────────────────
+hoop:
+  enabled: false               # (Optional) Enable Hoop integration. Default: false.
+  community: true              # (Optional) true = community mode (hoop_connections output is null). false = enterprise. Default: true.
+  agent_id: ""                 # (Required when enabled+!community) Hoop agent UUID.
+  port: 5433                   # (Optional) Local Hoop tunnel port (used when routing through Hoop). Default: 5433.
+  db_name: "postgres"          # (Optional) Database used for the Hoop connection. Default: "postgres".
+  server_name: ""              # (Optional) Logical server name shown in Hoop connection name.
+  import: false                # (Optional) Import an existing Hoop connection instead of creating. Default: false.
+  tags: {}                     # (Optional) Tags map applied to Hoop connection secrets.
+  access_control: []           # (Optional) List of access control groups for the Hoop connection.

@@ -6,3 +6,9 @@
 #       WebSite: https://cloudops.works
 #     Distributed Under Apache v2.0 License
 #
+
+variable "region" {
+  description = "Azure Region to deploy resources into. Example: 'eastus2', defaults to empty string as some of the resources may not require region setting."
+  type        = string
+  default     = ""
+}

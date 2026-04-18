@@ -1,37 +1,236 @@
-name: Terraform Transit Gateway Module
+name: Terraform Azure PostgreSQL Management Module
 #logo: logo/logo.jpg
 badges:
   - name: Latest Release
-    image: https://img.shields.io/github/release/<owner/repo>.svg?style=for-the-badge
-    url: https://github.com/<owner/repo>/releases/latest
+    image: https://img.shields.io/github/release/cloudopsworks/terraform-module-azurerm-postgres-management.svg?style=for-the-badge
+    url: https://github.com/cloudopsworks/terraform-module-azurerm-postgres-management/releases/latest
   - name: Last Updated
-    image: https://img.shields.io/github/last-commit/<owner/repo>.svg?style=for-the-badge
-    url: https://github.com/<owner/repo>/commits
+    image: https://img.shields.io/github/last-commit/cloudopsworks/terraform-module-azurerm-postgres-management.svg?style=for-the-badge
+    url: https://github.com/cloudopsworks/terraform-module-azurerm-postgres-management/commits
 
 license: "APACHE2"
 
 copyrights:
   - name: "Cloud Ops Works LLC"
     url: "https://cloudopsworks.co"
-    year: "2026"
+    year: "2021"
 
-github_repo: <owner/repo>
+github_repo: cloudopsworks/terraform-module-azurerm-postgres-management
 
 description: |-
-  <description>
+  Terraform module for managing PostgreSQL databases, users, and roles on an existing Azure
+  PostgreSQL Flexible Server. Uses the `cyrilgdn/postgresql` provider for database-level
+  management and stores credentials securely in Azure Key Vault.
 
 # Introduction to the project
 introduction: |-
-#  This is an introduction.
+  This module manages PostgreSQL objects (databases, schemas, roles, and grants) on an existing
+  Azure PostgreSQL Flexible Server. It supports three connection modes:
+
+  - **Azure mode** (`azure.enabled=true`): Connects directly to an Azure PostgreSQL Flexible
+    Server, optionally reading admin credentials from a Key Vault secret.
+  - **Hoop tunnel mode** (`hoop.enabled=true`): Routes connections through a local Hoop tunnel
+    (localhost) for environments where the server is not directly reachable.
+  - **Direct mode** (default): Connects using explicit host/port/credentials.
+
+  All user credentials are stored as JSON secrets in Azure Key Vault. Enterprise Hoop mode
+  additionally stores per-field secrets (host, port, user, pass, db) and emits a structured
+  `hoop_connections` output consumed by the Hoop operator module.
 
 # How to use this project
 usage: |-
+  ```hcl
+  # terragrunt.hcl
+  terraform {
+    source = "git::https://github.com/cloudopsworks/terraform-module-azurerm-postgres-management.git//?ref=v1.0.0"
+  }
+
+  locals {
+    local_vars = yamldecode(file("inputs.yaml"))
+  }
+
+  inputs = merge(
+    local.local_vars,
+    {
+      org = {
+        organization_name = "myorg"
+        organization_unit = "platform"
+        environment_name  = "production"
+        environment_type  = "prod"
+      }
+      spoke_def  = "001"
+      region     = "eastus2"
+      extra_tags = {}
+    }
+  )
+  ```
+
+  **inputs.yaml** example:
+
+  ```yaml
+  # Connection: Azure PostgreSQL Flexible Server (direct lookup)
+  azure:
+    enabled: true               # (Optional) Use Azure Flexible Server lookup. Default: false.
+    from_secret: false          # (Optional) Load credentials from Key Vault secret. Default: false.
+    server_name: "mypg-server"  # (Required when enabled+!from_secret) Flexible Server name.
+    resource_group_name: "rg-db" # (Optional) Server resource group.
+    admin_username: "pgadmin"   # (Optional) Admin login. Default: "adminuser".
+    admin_password: "S3cret!"   # (Optional) Admin password when not from_secret.
+    db_name: "postgres"         # (Optional) Default database. Default: "postgres".
+    sslmode: "require"          # (Optional) SSL mode. Default: "require".
+    superuser: false            # (Optional) Superuser flag. Default: false.
+
+  # Connection: load admin creds from Key Vault JSON secret
+  # azure:
+  #   enabled: true
+  #   from_secret: true
+  #   secret_name: "mypg-admin-creds"  # (Required) KV secret with JSON {host,port,username,password,dbname}
+  #   server_name: "mypg-server"       # (Optional) Used as logical server name for hoop.
+
+  # Connection: Direct (no Azure lookup)
+  # direct:
+  #   host: "mypg-server.postgres.database.azure.com"  # (Required) FQDN or IP.
+  #   port: 5432                                        # (Optional) Port. Default: 5432.
+  #   username: "pgadmin"                               # (Required) Admin username.
+  #   password: "S3cret!"                               # (Required) Admin password.
+  #   db_name: "postgres"                               # (Optional) Default database. Default: "postgres".
+  #   server_name: "mypg-server"                        # (Optional) Logical name for credential naming.
+  #   sslmode: "require"                                # (Optional) SSL mode. Default: "require".
+  #   superuser: false                                  # (Optional) Superuser mode. Default: false.
+
+  # Databases
+  databases:
+    mydb:                             # (Required) Logical key
+      name: "mydb"                    # (Required) Actual database name
+      owner: "appowner"               # (Optional) Owner role. Default: admin login.
+      lc_collate: "en_US.UTF-8"       # (Optional) Collation. Default: "en_US.UTF-8".
+      lc_ctype: "en_US.UTF-8"         # (Optional) Character type. Default: "en_US.UTF-8".
+      connection_limit: -1            # (Optional) Max connections. Default: -1 (unlimited).
+      schemas:                        # (Optional) Schemas to create in this database.
+        - name: "app"
+          owner: "appowner"
+
+  # Users / Roles
+  users:
+    owner:                            # (Required) Logical key
+      username: "appowner"            # (Required) PostgreSQL role name.
+      databases: ["mydb"]             # (Required) Databases this user is associated with.
+      create_owner: true              # (Optional) true=owner role, false=regular user. Default: true.
+      create_db: false                # (Optional) Grant CREATEDB. Default: false.
+      create_role: false              # (Optional) Grant CREATEROLE. Default: false.
+    reader:
+      username: "appreader"
+      databases: ["mydb"]
+      create_owner: false             # (Optional) Regular user. Default: true.
+      access: "readonly"              # (Optional) "readonly" or "readwrite". Default: "readwrite".
+      role: "readonly"                # (Optional) Grant membership in a named role group.
+
+  # Key Vault
+  key_vault_name: "my-keyvault"                   # (Required) Key Vault name for credential storage.
+  key_vault_resource_group_name: "rg-shared"      # (Required) Resource group of the Key Vault.
+
+  # Password management
+  password_rotation_period: "30d"   # (Optional) Rotation period. Default: "" (no rotation).
+  force_reset: false                 # (Optional) Force password reset on apply. Default: false.
+
+  # Hoop (optional)
+  hoop:
+    enabled: false                   # (Optional) Enable Hoop integration. Default: false.
+    community: true                  # (Optional) true=community (null output); false=enterprise. Default: true.
+    agent_id: ""                     # (Required when enabled+!community) Hoop agent UUID.
+    port: 5433                       # (Optional) Local Hoop tunnel port. Default: 5433.
+    db_name: "postgres"              # (Optional) Database for Hoop connection. Default: "postgres".
+    server_name: ""                  # (Optional) Logical server name for Hoop.
+    import: false                    # (Optional) Import existing Hoop connection. Default: false.
+    tags: {}                         # (Optional) Tags for Hoop connections.
+    access_control: []               # (Optional) Access control groups.
+  ```
 
 # Example usage
 examples: |-
+  ### Minimal — Azure Flexible Server with direct credentials
+
+  ```yaml
+  azure:
+    enabled: true
+    server_name: "mypg-server"
+    resource_group_name: "rg-db"
+    admin_username: "pgadmin"
+    admin_password: "S3cret!"
+
+  databases:
+    appdb:
+      name: "appdb"
+
+  users:
+    appuser:
+      username: "appuser"
+      databases: ["appdb"]
+
+  key_vault_name: "mykv"
+  key_vault_resource_group_name: "rg-shared"
+  ```
+
+  ### With credentials from Key Vault secret
+
+  ```yaml
+  azure:
+    enabled: true
+    from_secret: true
+    secret_name: "mypg-admin-creds"
+
+  databases:
+    appdb:
+      name: "appdb"
+
+  users:
+    appuser:
+      username: "appuser"
+      databases: ["appdb"]
+      create_owner: false
+      access: "readwrite"
+
+  key_vault_name: "mykv"
+  key_vault_resource_group_name: "rg-shared"
+  ```
+
+  ### Enterprise Hoop integration
+
+  ```yaml
+  azure:
+    enabled: true
+    server_name: "mypg-server"
+    resource_group_name: "rg-db"
+    admin_username: "pgadmin"
+    admin_password: "S3cret!"
+
+  databases:
+    appdb:
+      name: "appdb"
+
+  users:
+    appowner:
+      username: "appowner"
+      databases: ["appdb"]
+
+  hoop:
+    enabled: true
+    community: false
+    agent_id: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+    tags:
+      team: "platform"
+
+  key_vault_name: "mykv"
+  key_vault_resource_group_name: "rg-shared"
+  ```
 
 # How to get started quickly
 quickstart: |-
+  1. Ensure an Azure PostgreSQL Flexible Server exists and is reachable from your Terraform runner.
+  2. Ensure the Azure Key Vault exists and the runner's identity has `Secret Officer` permissions.
+  3. Copy `.boilerplate/inputs.yaml` to your Terragrunt deployment directory and fill in the required fields.
+  4. Run `terragrunt init && terragrunt plan` to preview changes.
+  5. Run `terragrunt apply` to create databases, roles, and Key Vault secrets.
 
 include:
   - "docs/targets.md"
