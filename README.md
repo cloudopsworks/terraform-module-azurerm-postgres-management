@@ -288,9 +288,9 @@ Available targets:
 
 | Name | Version |
 |------|---------|
-| <a name="provider_azurerm"></a> [azurerm](#provider\_azurerm) | 4.69.0 |
-| <a name="provider_postgresql"></a> [postgresql](#provider\_postgresql) | 1.26.0 |
-| <a name="provider_random"></a> [random](#provider\_random) | 3.8.1 |
+| <a name="provider_azurerm"></a> [azurerm](#provider\_azurerm) | ~> 4.59 |
+| <a name="provider_postgresql"></a> [postgresql](#provider\_postgresql) | ~> 1.25 |
+| <a name="provider_random"></a> [random](#provider\_random) | ~> 3.4 |
 
 ## Modules
 
