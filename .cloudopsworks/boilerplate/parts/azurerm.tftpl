@@ -74,6 +74,15 @@ terraform {
       source  = "hashicorp/azurerm"
       version = "~> 4.59"
     }
+    postgresql = {
+          source  = "cyrilgdn/postgresql"
+          version = "~> 1.25"
+        }
+    random = {
+          source  = "hashicorp/random"
+          version = "~> 3.4"
+        }
+
   }
 }
 {{ end }}
