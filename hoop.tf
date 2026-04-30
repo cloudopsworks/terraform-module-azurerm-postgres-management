@@ -65,14 +65,17 @@ output "hoop_connections" {
   description = "Hoop connection definitions for Azure. Enterprise mode only (Key Vault has no sub-key access). Community mode returns null."
   value = local.hoop_enterprise ? {
     for k, v in local.hoop_all_users : "${try(v.username, k)}" => {
-      name           = lower(replace("${local.psql.server_name}-pgsql-${try(v.username, k)}", "/[^a-zA-Z0-9-]/", "-"))
-      agent_id       = var.hoop.agent_id
-      type           = "database"
-      subtype        = "postgres"
-      tags           = try(var.hoop.tags, {})
-      access_control = toset(try(var.hoop.access_control, []))
-      access_modes   = { connect = "enabled", exec = "enabled", runbooks = "enabled", schema = "enabled" }
-      import         = try(var.hoop.import, false)
+      name     = lower(replace("${local.psql.server_name}-pgsql-${try(v.username, k)}", "/[^a-zA-Z0-9-]/", "-"))
+      agent_id = var.hoop.agent_id
+      type     = "database"
+      subtype  = "postgres"
+      tags     = try(var.hoop.tags, {})
+      access_control = setunion(
+        toset(try(var.hoop.access_control, [])),
+        toset(try(v.hoop.access_control, []))
+      )
+      access_modes = { connect = "enabled", exec = "enabled", runbooks = "enabled", schema = "enabled" }
+      import       = try(var.hoop.import, false)
       secrets = {
         "envvar:HOST"    = "_envs/azure/${azurerm_key_vault_secret.hoop_host[k].name}"
         "envvar:PORT"    = "_envs/azure/${azurerm_key_vault_secret.hoop_port[k].name}"
