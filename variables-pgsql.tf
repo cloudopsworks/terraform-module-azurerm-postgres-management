@@ -18,6 +18,8 @@
 #     username: "appreader"
 #     databases: ["mydb"]
 #     role: "readonly"               # (Optional) Grant membership in a named role group
+#     hoop:                             # (Optional) Per-user Hoop settings.
+#       access_control: []              # (Optional) Access control groups merged with hoop.access_control.
 variable "users" {
   description = "Map of PostgreSQL users/roles to create with their database assignments."
   type        = any
